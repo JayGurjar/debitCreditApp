@@ -25,10 +25,18 @@ class TransactionAdapter (
 
     override fun onBindViewHolder(holder: AccountViewHolder, position: Int) {
         val item = transactions[position]
-        holder.numberTextView.text = item.amount
+        holder.numberTextView.text = "$${String.format("%.2f", item.amount.toDoubleOrNull())}"
     }
 
     override fun getItemCount(): Int {
         return transactions.size
+    }
+
+    fun calculateTotal(): Double {
+        var total = 0.0
+        for (item in transactions) {
+            total += item.amount.toDoubleOrNull() ?: 0.0
+        }
+        return total
     }
 }
