@@ -11,12 +11,17 @@ import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
 import android.provider.Telephony
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity() {
-
+    private val DAY_IN_MILLIS = 24 * 60 * 60 * 1000L
+    private val MONTH_IN_MILLIS = 30 * DAY_IN_MILLIS
     private val creditedList : MutableList<SmsItem> = mutableListOf<SmsItem>()
     private val debitedList : MutableList<SmsItem> = mutableListOf<SmsItem>()
     private val debitedAdapter: TransactionAdapter = TransactionAdapter(debitedList)
@@ -57,6 +62,17 @@ class MainActivity : AppCompatActivity() {
 
         val recyclerCreditView : RecyclerView = findViewById(R.id.rvCreditList)
         val recyclerDebitView : RecyclerView = findViewById(R.id.rvDebitList);
+        val spinnerView : Spinner = findViewById(R.id.spinFilterTime);
+
+        ArrayAdapter.createFromResource(
+            this,
+            R.array.filter_options,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            spinnerView.adapter = adapter
+            spinnerView.setSelection(adapter.getPosition("Last Month"));
+        }
 
         recyclerCreditView.layoutManager = LinearLayoutManager(this)
         recyclerCreditView.adapter = creditedAdapter;
@@ -67,13 +83,26 @@ class MainActivity : AppCompatActivity() {
         if(ActivityCompat.checkSelfPermission(this,Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS),101);
         }else{
-            fetchMessages();
+
+            spinnerView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
+                    val selectedFilter = p0?.getItemAtPosition(p2).toString();
+                    creditedList.clear()
+                    debitedList.clear()
+                    fetchMessages(selectedFilter);
+                }
+
+                override fun onNothingSelected(p0: AdapterView<*>?) {
+                }
+
+            }
             receiveMsg();
         }
+
     }
 
     @SuppressLint("Range")
-    private fun fetchMessages() {
+    private fun fetchMessages(timeFrame : String) {
         val contentResolver: ContentResolver = this.contentResolver
         val uri: Uri = Telephony.Sms.CONTENT_URI
 
@@ -82,14 +111,17 @@ class MainActivity : AppCompatActivity() {
         cursor?.use { cursor1 ->
             while (cursor1.moveToNext()) {
                 val messageBody = cursor1.getString(cursor1.getColumnIndex(Telephony.Sms.BODY))
+                val dateSentMilli = cursor1.getLong(cursor1.getColumnIndex(Telephony.Sms.DATE))
                 val transactionInfo = extractTransactionInfo(messageBody)
                 val number : String = transactionInfo?.get("amount")?.takeIf { it.isNotBlank() } ?: ""
                 val transactionType : String? = transactionInfo?.get("transaction_type")
-                if(transactionInfo != null) {
-                    if (transactionType == "credited") {
-                        creditedList.add(SmsItem(number))
-                    } else {
-                        debitedList.add(SmsItem(number))
+                if (isMessageInTimeFrame(dateSentMilli, timeFrame)) {
+                    if (transactionInfo != null) {
+                        if (transactionType == "credited") {
+                            creditedList.add(SmsItem(number))
+                        } else {
+                            debitedList.add(SmsItem(number))
+                        }
                     }
                 }
             }
@@ -102,6 +134,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun isMessageInTimeFrame(dateSentMillis: Long, timeFrame: String): Boolean {
+
+        val currentTimeMillis = System.currentTimeMillis()
+        val startTimeMillis = when (timeFrame) {
+            "Last Month" -> currentTimeMillis - MONTH_IN_MILLIS
+            "Last 3 Months" -> currentTimeMillis - 3 * MONTH_IN_MILLIS
+            else -> 0L // "All" - start from the beginning
+        }
+
+        return dateSentMillis >= startTimeMillis
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -109,7 +153,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if(requestCode == 101 && grantResults.all { it == PackageManager.PERMISSION_GRANTED }){
-            fetchMessages();
+            fetchMessages("Last Month");
             receiveMsg();
         }
     }
