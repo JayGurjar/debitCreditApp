@@ -29,7 +29,7 @@ class ReceiveSMS (
         val amount = matchResult?.groupValues?.get(2)
 
         if (!transactionType.isNullOrBlank() && !amount.isNullOrBlank()) {
-            return mapOf("transaction_type" to transactionType, "amount" to amount)
+            return mapOf("transaction_type" to transactionType.lowercase(), "amount" to amount)
         }
 
         return null

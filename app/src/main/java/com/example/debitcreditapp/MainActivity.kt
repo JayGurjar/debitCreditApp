@@ -18,6 +18,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private val DAY_IN_MILLIS = 24 * 60 * 60 * 1000L
@@ -51,7 +52,7 @@ class MainActivity : AppCompatActivity() {
 
 
         if (!transactionType.isNullOrBlank() && !amount.isNullOrBlank()) {
-            return mapOf("transaction_type" to transactionType, "amount" to amount)
+            return mapOf("transaction_type" to transactionType.lowercase(), "amount" to amount)
         }
 
         return null
